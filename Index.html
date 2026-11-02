@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дневник добытчика</title>
+<style>
+:root{color-scheme:dark;--bg:#0f1115;--sf:#181b22;--bd:#2a2f3a;--tx:#e6e8ee;--mt:#8b93a5;--ac:#4f8cff;--rd:#e5534b;--gn:#3fb27f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.w{max-width:560px;margin:0 auto;padding:16px}
+.c{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:16px;margin-bottom:12px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:0 0 8px}
+.m{color:var(--mt);font-size:14px}.er{color:var(--rd);min-height:22px}.ok{color:var(--gn)}
+input,select,textarea{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px;margin:4px 0}
+button{font:inherit;color:#fff;background:var(--ac);border:0;border-radius:8px;padding:10px 16px;cursor:pointer}
+button.g{background:transparent;border:1px solid var(--bd);color:var(--tx)}
+button.d{background:var(--rd)}
+.t{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.t button{flex:1;min-width:80px}
+.r{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}.r>input{flex:1;margin:0}
+.id{font:600 20px ui-monospace,Menlo,monospace;color:var(--ac)}
+.i{padding:10px 0;border-bottom:1px solid var(--bd)}.i:last-child{border:0}
+.b{display:inline-block;padding:0 8px;border-radius:99px;border:1px solid var(--ac);color:var(--ac);font-size:13px}
+.b.x{border-color:var(--rd);color:var(--rd)}
+a{color:var(--ac)}
+</style></head><body><div class="w" id="app"></div>
+<script>
+// 1. Вставь сюда адрес своей Firebase Realtime Database, например https://my-team-default-rtdb.firebaseio.com
+const DB='https://zarabotok-b9467-default-rtdb.firebaseio.com/';
+const ADMIN_HASH='4e017f28a43c380dc377c86290c3d990d0af1a8cea925cf3e22fc85edfc55bb3';
+const R={admin:'Администратор',lead:'Бригадир',miner:'Добытчик',new:'Новичок'};
+const NOTE='<p class="m" style="color:var(--rd)">⚠️ Если вы введёте неверное имя или фамилию, сделка будет отклонена, а вы заблокированы.</p>';
+let d={users:{},pay:{},log:{},bans:{}},me=null,mode='in',tab='me',msg='',last='',dirty=false;
+const $=id=>document.getElementById(id),v=id=>$(id).value;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('dn:'+s));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+const nk=s=>s.toLowerCase().replace(/ё/g,'е').split(/\s+/).filter(Boolean).sort().join('_').replace(/[.$#\[\]\/]/g,'');
+async function api(p,m,b){const r=await fetch(DB.replace(/\/$/,'')+'/'+p+'.json',{method:m||'GET',headers:{'Content-Type':'application/json'},body:b===undefined?undefined:JSON.stringify(b)});if(!r.ok)throw new Error(r.status);return r.json()}
+async function pull(){const x=await api('')||{};d={users:x.users||{},pay:x.pay||{},log:x.log||{},bans:x.bans||{},meta:x.meta};
+if(me)me=d.users[me.id]||null;const s=JSON.stringify(d);if(s!==last){last=s;dirty=true}}
+const ss=id=>{try{localStorage.setItem('dn_me',id)}catch(e){}};
+async function act(f){try{await f();await pull();msg='';draw();return true}catch(e){msg='Ошибка связи с базой';draw();return false}}
+function er(m){msg=m;draw()}
+async function init(){
+if(DB.includes('PASTE')){$('app').innerHTML='<div class="c"><h1>Нужна база данных</h1><p class="m">Открой index.html и вставь адрес Firebase Realtime Database в строку const DB.</p></div>';return}
+try{await pull();
+if(!d.users['ID-000001']&&!d.meta){await api('users/ID-000001','PUT',{id:'ID-000001',name:'Стрелков Степан',h:ADMIN_HASH,role:'admin'});await api('pay','PUT',{p1:{item:'Компьютер / ноутбук',price:300},p2:{item:'Аккумулятор',price:400}});await api('meta','PUT',{seeded:true});await pull()}
+try{const s=localStorage.getItem('dn_me');if(s&&d.users[s]&&!d.users[s].banned)me=d.users[s]}catch(e){}
+draw();setInterval(async()=>{try{await pull();const a=document.activeElement;if(dirty&&!(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))){dirty=false;draw()}}catch(e){}},6000)}
+catch(e){$('app').innerHTML='<div class="c"><h1>Нет связи с базой</h1><p class="m">Проверь адрес базы и правила доступа.</p></div>'}}
+async function login(){const n=v('n').trim().toLowerCase(),h=await sha(v('p'));
+try{await pull()}catch(e){return er('Нет связи с базой')}
+const u=Object.values(d.users).find(u=>u.name.toLowerCase()===n&&u.h===h);
+if(!u)return er('Неверное имя или пароль');if(u.banned)return er('Аккаунт заблокирован');
+me=u;ss(u.id);msg='';tab='me';draw()}
+async function reg(){const n=v('n').trim().replace(/\s+/g,' '),p=v('p');
+if(n.length<2||n.length>30)return er('Имя: от 2 до 30 символов');
+if(p.length<6)return er('Пароль: минимум 6 символов');
+try{await pull()}catch(e){return er('Нет связи с базой')}
+if(d.bans[nk(n)])return er('Регистрация с этим именем заблокирована');
+if(Object.values(d.users).some(u=>nk(u.name)===nk(n)))return er('Такое имя уже занято');
