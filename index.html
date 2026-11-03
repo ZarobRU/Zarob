@@ -57,3 +57,46 @@ if(p.length<6)return er('Пароль: минимум 6 символов');
 try{await pull()}catch(e){return er('Нет связи с базой')}
 if(d.bans[nk(n)])return er('Регистрация с этим именем заблокирована');
 if(Object.values(d.users).some(u=>nk(u.name)===nk(n)))return er('Такое имя уже занято');
+let id;do{id='ID-'+(Math.floor(Math.random()*900000)+100000)}while(d.users[id]);
+const u={id,name:n,h:await sha(p),role:'new'};
+try{await api('users/'+id,'PUT',u)}catch(e){return er('Ошибка записи в базу')}
+d.users[id]=u;me=u;ss(id);msg='';tab='me';draw()}
+function out(){me=null;try{localStorage.removeItem('dn_me')}catch(e){}draw()}
+function go(t){tab=t;msg='';draw()}
+async function give(){const p=d.pay[v('it')];if(!p)return;const nt=v('nt').trim();
+if(nt.length<3){$('ge').textContent='Укажите, где вы готовы отдать заказ';return}
+let did;do{did='DL-'+(Math.floor(Math.random()*900000)+100000)}while(d.log[did]);
+const ok=await act(()=>api('log/'+did,'PUT',{did,uid:me.id,item:p.item,price:p.price,note:nt.slice(0,200),date:new Date().toLocaleDateString('ru-RU'),ts:Date.now(),st:'wait'}));
+if(ok){msg='Сделка '+did+' записана. Ждите решения администратора.';tab='me';draw()}}
+function dec(did,s){if(s==='ok'&&me.role!=='admin')return;act(()=>api('log/'+did,'PATCH',{st:s}))}
+function rejban(did){if(me.role!=='admin')return;act(async()=>{const l=d.log[did],u=d.users[l.uid];await api('log/'+did,'PATCH',{st:'no'});if(u&&u.role!=='admin'){await api('users/'+u.id,'PATCH',{banned:true});await api('bans/'+nk(u.name),'PUT',true)}})}
+function role(id,r){if(me.role!=='admin')return;if(d.users[id].role==='admin'&&r!=='admin'&&Object.values(d.users).filter(u=>u.role==='admin').length<2){msg='Нужен хотя бы один администратор';return draw()}act(()=>api('users/'+id,'PATCH',{role:r}))}
+function ban(id){const u=d.users[id];if(me.role!=='admin'||!u||u.role==='admin')return;act(async()=>{await api('users/'+id,'PATCH',{banned:true});await api('bans/'+nk(u.name),'PUT',true)})}
+function unban(id){const u=d.users[id];if(me.role!=='admin'||!u)return;act(async()=>{await api('users/'+id,'PATCH',{banned:false});await api('bans/'+nk(u.name),'DELETE')})}
+function price(id,x){api('pay/'+id,'PATCH',{price:Math.max(0,+x||0)}).catch(()=>{})}
+function pname(id,x){api('pay/'+id,'PATCH',{item:x.slice(0,60)}).catch(()=>{})}
+function pdel(id){act(()=>api('pay/'+id,'DELETE'))}
+function padd(){const n=v('pn').trim(),p=+v('pp');if(!n)return;act(()=>api('pay/p'+Date.now(),'PUT',{item:n.slice(0,60),price:Math.max(0,p||0)}))}
+const bal=id=>Object.values(d.log).filter(l=>l.uid===id&&l.st==='ok').reduce((a,l)=>a+l.price,0);
+const tabs=[['me','Профиль'],['pay','Выплаты'],['give','Сдать']];
+function draw(){const a=$('app');
+if(me&&me.banned){me=null;msg='Аккаунт заблокирован'}
+if(!me){a.innerHTML=`<div class="c"><h1>Дневник добытчика</h1><div class="m">Команда, сдачи и выплаты</div></div>
+<div class="c"><div class="t"><button class="${mode==='in'?'':'g'}" onclick="mode='in';msg='';draw()">Вход</button><button class="${mode==='up'?'':'g'}" onclick="mode='up';msg='';draw()">Регистрация</button></div>
+<input id="n" placeholder="Имя и фамилия" autocomplete="username"><input id="p" type="password" placeholder="Пароль" autocomplete="${mode==='in'?'current-password':'new-password'}">
+${mode==='up'?NOTE:''}<div class="er">${esc(msg)}</div><button onclick="${mode==='in'?'login()':'reg()'}">${mode==='in'?'Войти':'Создать аккаунт'}</button></div>`;return}
+const adm=me.role==='admin',mod=adm||me.role==='lead';
+let h=`<div class="c"><div class="r" style="justify-content:space-between;margin:0"><div><h1>${esc(me.name)}</h1><span class="b">${R[me.role]}</span></div><button class="g" onclick="out()">Выйти</button></div></div>
+<div class="t">${tabs.map(([k,t])=>`<button class="${tab===k?'':'g'}" onclick="go('${k}')">${t}</button>`).join('')}${mod?`<button class="${tab==='adm'?'':'g'}" onclick="go('adm')">Управление</button>`:''}</div>`;
+if(tab==='me'){const L=Object.values(d.log).filter(l=>l.uid===me.id).sort((x,y)=>y.ts-x.ts);
+h+=`<div class="c"><div class="m">Твой уникальный ID</div><div class="id">${me.id}</div><h2 style="margin-top:10px">Заработано: ${bal(me.id)} ₽</h2><div class="ok">${esc(msg)}</div></div>
+<div class="c"><h2>Записи</h2>${L.map(l=>`<div class="i"><span class="id" style="font-size:15px">${l.did}</span><br><b>${esc(l.item)}</b> · ${l.price} ₽ <span class="m">${l.date}</span><br><span class="m">${l.st==='ok'?'✅ оплачено':l.st==='no'?'❌ отклонено':l.st==='acc'?'🤝 принято, ждите встречи, оплата после неё':'⏳ ждёт ответа'} · 📍 ${esc(l.note)}</span></div>`).join('')||'<div class="m">Пока пусто. Сдай что-нибудь на вкладке «Сдать».</div>'}</div>`}
+if(tab==='pay'){const P=Object.entries(d.pay);h+=`<div class="c"><h2>Лист выплат</h2>${NOTE}${P.map(([k,p])=>adm?`<div class="r"><input value="${esc(p.item)}" onchange="pname('${k}',this.value)"><input type="number" value="${p.price}" style="max-width:90px" onchange="price('${k}',this.value)"><button class="d" onclick="pdel('${k}')">✕</button></div>`:`<div class="i">${esc(p.item)} <b style="float:right">${p.price} ₽</b></div>`).join('')}
+${adm?`<div class="r"><input id="pn" placeholder="Новая позиция"><input id="pp" type="number" placeholder="₽" style="max-width:90px"><button onclick="padd()">Добавить</button></div>`:''}<div class="er">${esc(msg)}</div></div>`}
+if(tab==='give'){const P=Object.entries(d.pay);h+=`<div class="c"><h2>Сдать находку</h2>${NOTE}${P.length?`<select id="it">${P.map(([k,p])=>`<option value="${k}">${esc(p.item)} — ${p.price} ₽</option>`).join('')}</select><div class="m" style="margin-top:8px">Обязательно: где вы готовы отдать заказ</div><textarea id="nt" rows="3" maxlength="200" placeholder="Место, район, удобное время"></textarea><div class="er" id="ge">${esc(msg)}</div><button onclick="give()">Записать сдачу</button>`:'<div class="m">Список выплат пуст</div>'}</div>`}
+if(tab==='adm'&&mod){const W=Object.values(d.log).filter(l=>l.st==='wait'||l.st==='acc').sort((x,y)=>x.ts-y.ts);
+h+=`<div class="c"><h2>Активные сделки (${W.length})</h2><div class="er">${esc(msg)}</div>${W.map(l=>`<div class="i"><span class="id" style="font-size:15px">${l.did}</span><br><b>${esc(d.users[l.uid]?.name||'?')}</b> · ${esc(l.item)} · ${l.price} ₽<br><span class="m">${l.date}${l.st==='acc'?' · 🤝 принят, ждёт встречи':''}</span><br>📍 ${esc(l.note)}<div class="r">${l.st==='wait'?`<button onclick="dec('${l.did}','acc')">Принять заказ</button>`:adm?`<button onclick="dec('${l.did}','ok')">Принять оплату</button>`:''}<button class="g" onclick="dec('${l.did}','no')">${l.st==='wait'?'Отклонить':'Отменить'}</button>${adm&&l.st==='wait'?`<button class="d" onclick="rejban('${l.did}')">Отклонить и забанить</button>`:''}</div></div>`).join('')||'<div class="m">Очередь пуста</div>'}</div>`;
+if(adm)h+=`<div class="c"><h2>Участники (${Object.keys(d.users).length})</h2>${Object.values(d.users).map(u=>`<div class="i"><b>${esc(u.name)}</b> <span class="m">${u.id} · ${bal(u.id)} ₽</span>${u.banned?' <span class="b x">бан</span>':''}<div class="r"><select onchange="role('${u.id}',this.value)" style="flex:1;margin:0">${Object.entries(R).map(([k,t])=>`<option value="${k}" ${u.role===k?'selected':''}>${t}</option>`).join('')}</select>${u.role==='admin'?'':u.banned?`<button class="g" onclick="unban('${u.id}')">Разбанить</button>`:`<button class="d" onclick="ban('${u.id}')">Забанить</button>`}</div></div>`).join('')}</div>`}
+a.innerHTML=h}
+init();
+</script></body></html>
